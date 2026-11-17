@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lyric Visual</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:system-ui,sans-serif}
+canvas{display:block;width:100vw;height:100vh}
+#start{position:fixed;inset:0;z-index:2;background:#000;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#cfe4ff;font-size:clamp(16px,2.6vw,24px);text-align:center;padding:20px}
+#start b{font:400 clamp(44px,10vw,100px)/1 Georgia,serif;color:#eef6ff;text-shadow:0 0 30px #7fd6ff55}
+#start small{color:#6f8296;font-size:.6em;line-height:1.7}
+#start.hide{display:none}
+#controls{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:5;width:min(720px,calc(100vw - 30px));padding:12px 14px 13px;box-sizing:border-box;border:1px solid #ffffff2e;border-radius:18px;background:#1c1c20b8;backdrop-filter:blur(28px) saturate(150%);-webkit-backdrop-filter:blur(28px) saturate(150%);box-shadow:0 18px 55px #0006;color:#fff;transition:.25s}
+#controls.hidden{opacity:0;pointer-events:none;transform:translateX(-50%) translateY(12px);filter:blur(4px)}
+#bar{display:flex;align-items:center;gap:7px;margin-bottom:9px}
+.dot{width:10px;height:10px;border-radius:50%;border:0;padding:0;cursor:pointer}
+.dot:hover{filter:brightness(1.15)}
+#bar .dot:nth-child(1){background:#ff5f57}#bar .dot:nth-child(2){background:#febc2e}#bar .dot:nth-child(3){background:#28c840}
+#bar span{margin-left:auto;margin-right:auto;font:600 11px system-ui;color:#ffffff8c;transform:translateX(-24px)}
+#progress{width:100%;height:4px;display:block;margin:0 0 10px;accent-color:#9fd8ff;cursor:pointer}
+#buttons{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap}
+#buttons button{border:1px solid #ffffff1f;background:#ffffff13;color:#fff;border-radius:10px;min-width:38px;height:34px;padding:0 11px;cursor:pointer;font:600 12px system-ui;transition:.18s}
+#buttons button:hover{background:#ffffff24;transform:translateY(-1px)}
+#buttons #play{min-width:86px;background:#9fd8ff29;border-color:#9fd8ff47}
+#time{margin-left:4px;min-width:76px;text-align:right;font:11px ui-monospace,monospace;opacity:.62}
+#showControls{position:fixed;right:18px;bottom:18px;z-index:6;width:38px;height:38px;border:1px solid #ffffff2e;border-radius:12px;color:#fff;background:#1c1c20ad;backdrop-filter:blur(20px);cursor:pointer;opacity:0;pointer-events:none;transition:.25s}
+#showControls.visible{opacity:1;pointer-events:auto}
+@media(max-width:560px){#controls{bottom:14px;width:calc(100vw - 18px);padding:10px}#buttons{gap:5px}#buttons button{height:32px;padding:0 8px}#buttons #play{min-width:72px}#time{min-width:62px}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<!-- Ganti src dengan file lagu Anda -->
+<audio id="song" src="WhatsApp Video 2026-11-17 at 11.29.58.mp3" preload="auto"></audio>
+<div id="controls">
+  <div id="bar"><button class="dot" id="hideControls" aria-label="Sembunyikan kontrol"></button><button class="dot" id="hideControls2" aria-label="Sembunyikan kontrol"></button><button class="dot" id="fs" aria-label="Layar penuh"></button><span>Lyric Visual</span></div>
+  <input id="progress" type="range" min="0" max="0" step="0.01" value="0" aria-label="Posisi lagu">
+  <div id="buttons">
+    <button id="back10" aria-label="Mundur 10 detik">↶ 10s</button><button id="prev" aria-label="Lirik sebelumnya">⏮</button><button id="play">▶ Putar</button><button id="next" aria-label="Lirik berikutnya">⏭</button><button id="fwd10" aria-label="Maju 10 detik">10s ↷</button><span id="time">0:00 / 0:00</span>
+  </div>
+</div>
+<button id="showControls" aria-label="Tampilkan kontrol">☰</button>
+<div id="start"><b>lyric visual.</b>Klik untuk mulai<small>M = ganti gaya titik/ASCII · H = sembunyikan kontrol · F = layar penuh</small></div>
+
+<script>
+/* ===== ISI SENDIRI =====
+   t = detik lirik muncul, s = teks lirik (tulis sendiri di sini).
+   scene = adegan visual (urutan tema: angin dingin, tunas musim semi, monolog didengar banyak orang,
+   pantai pasir hitam, janji tak terlepas, bunga layu, aurora + burung terbang pergi).
+   Boleh tambah baris baru dan pakai ulang nama scene yang sama. */
+const LYRICS=[
+{t:13.52,s:"I miss the wind"},
+{t:16.62,s:"Stone-cold kiss om my cheeks"},
+{t:24.18,s:"Bends in your body"},
+{t:29.41,s:"The hope of your spring"},
+{t:36.01,s:"Millions now  hear my soliloquy"},
+{t:48.87,s:"Im still that child on a black sand beach"},
+{t:59.89,s:"Love you forever, don't let go of me"},
+{t:65.73,s:"I'll die if i wither in your memory"},
+{t:71.75,s:"Gleymdu mér aldrei þó ég héðan flýg"},
+{t:77.78,s:"Gleymdu mér aldrei, elskan mín"}
+];
+/* Adegan dipasang berdasarkan URUTAN baris (baris ke-1 pakai adegan ke-1, dst.).
+   Jadi saat Anda mengganti isi LYRICS dengan lirik sendiri, cukup atur urutan adegannya di sini.
+   Pilihan: frost, bend, wind, spring, soliloquy, beach, forever, wither, aurora */
+const SCENE_MAP=[
+ "wind",      // 1  angin
+ "frost",     // 2  ciuman dingin di pipi
+ "bend",      // 3  lekuk tubuh
+ "spring",    // 4  harapan musim semi
+ "soliloquy", // 5  didengar jutaan orang
+ "beach",     // 6  anak di pantai pasir hitam
+ "forever",   // 7  cinta selamanya, jangan lepaskan
+ "wither",    // 8  layu dalam ingatan
+ "aurora",    // 9  baris Islandia (jangan lupakan aku)
+ "aurora"     // 10
+];
+LYRICS.forEach((l,i)=>{l.scene=SCENE_MAP[i]||SCENE_MAP[SCENE_MAP.length-1]});
+const TIMES=LYRICS.map(l=>l.t),COLOR_TEXT="#fff",COLOR_ACCENT="#9fd8ff";
+
+const $=id=>document.getElementById(id);
+const canvas=$("c"),ctx=canvas.getContext("2d"),sc=document.createElement("canvas"),sx=sc.getContext("2d",{willReadFrequently:true}),audio=$("song");
+let W,H,dpr,cell,cols,rows,U,started=false,paused=true,mode=0,T=0,idx=-2,lineT=0,last=0,scene=LYRICS[0].scene,sceneT=0,cache=null;
+
+function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;canvas.width=W*dpr;canvas.height=H*dpr;
+ cell=Math.max(5,Math.round(W/190));cols=Math.ceil(W/cell);rows=Math.ceil(H/cell);sc.width=cols;sc.height=rows;U=Math.min(cols/45,rows/20);cache=null}
+addEventListener("resize",resize);resize();
+const useAudio=()=>!audio.error&&audio.readyState>0;
+
+const hr=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x)};
+const circle=(x,y,r,c)=>{sx.fillStyle=c;sx.beginPath();sx.arc(x,y,r,0,6.2832);sx.fill()};
+const glow=(x,y,r,rgb,a=.8)=>{const g=sx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,`rgba(${rgb},${a})`);g.addColorStop(1,`rgba(${rgb},0)`);sx.fillStyle=g;sx.fillRect(x-r,y-r,r*2,r*2)};
+function sky(a,b,c,hz){const g=sx.createLinearGradient(0,0,0,hz);g.addColorStop(0,a);g.addColorStop(.7,b);g.addColorStop(1,c);sx.fillStyle=g;sx.fillRect(0,0,cols,hz)}
+const ground=hz=>{sx.fillStyle="#000";sx.fillRect(0,hz,cols,rows-hz)};
+function stars(t,n=60,x0=0,y0=0,w=cols,h=rows*.7){for(let i=0;i<n;i++){sx.fillStyle=`rgba(230,240,255,${.2+.7*Math.abs(Math.sin(t*1.4+i))})`;sx.fillRect(x0+hr(i)*w,y0+hr(i+99)*h,1.2,1.2)}}
+const hillY=(x,t,hz,sp,amp,f,off)=>hz-amp*(.55+.3*Math.sin(x*f+t*sp+off)+.15*Math.sin(x*f*2.7+t*sp*2.7+off*2));
+function hills(t,hz,sp,amp,f,off,col){sx.fillStyle=col;for(let x=0;x<cols;x++){const y=hillY(x,t,hz,sp,amp,f,off);sx.fillRect(x,y,1,hz-y+1)}}
+function heart(x,y,s,col){sx.fillStyle=col;sx.beginPath();sx.moveTo(x,y+s*.35);sx.bezierCurveTo(x-s,y-s*.4,x-s*.6,y-s*1.1,x,y-s*.55);sx.bezierCurveTo(x+s*.6,y-s*1.1,x+s,y-s*.4,x,y+s*.35);sx.fill()}
+
+function body(x,y,u,col,pose,t){sx.fillStyle=col;
+ if(pose==="sit"){circle(x,y-7.6*u,1.5*u,col);sx.beginPath();sx.roundRect(x-1.7*u,y-6*u,3.4*u,4.2*u,u);sx.fill();sx.fillRect(x-1.7*u,y-2.2*u,5.2*u,1.3*u);sx.fillRect(x+2.3*u,y-2.2*u,1.2*u,2.2*u);return}
+ const b=Math.sin(t*1.5)*.12*u;
+ circle(x,y-9*u+b,1.5*u,col);sx.beginPath();sx.roundRect(x-1.8*u,y-7.3*u+b,3.6*u,4.6*u,u);sx.fill();
+ sx.lineWidth=1.3*u;sx.strokeStyle=col;sx.lineCap="round";sx.beginPath();sx.moveTo(x-.7*u,y-3*u);sx.lineTo(x-.7*u,y);sx.moveTo(x+.7*u,y-3*u);sx.lineTo(x+.7*u,y);sx.stroke()}
+// siluet hitam dengan syal biru muda yang tertiup angin
+function person(x,y,u,col,pose,t=0,wind=1){body(x,y,u,col,pose,t);
+ if(col==="#000"){const hy=pose==="sit"?y-6*u:y-7.2*u;sx.strokeStyle="#8fd0ff";sx.lineWidth=.8*u;sx.lineCap="round";sx.beginPath();sx.moveTo(x+.8*u,hy);
+  for(let i=1;i<=6;i++)sx.lineTo(x+.8*u-i*.75*u*wind,hy+Math.sin(t*3+i*.9)*.15*u*i+i*.12*u);sx.stroke()}}
+
+function flake(x,y,r,rot){sx.strokeStyle="rgba(220,240,255,.95)";sx.lineWidth=.5;sx.lineCap="round";
+ for(let k=0;k<6;k++){const a=rot+k*Math.PI/3;sx.beginPath();sx.moveTo(x,y);sx.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r);sx.stroke();
+  for(const f of[.5,.78])for(const s of[-1,1]){const bx=x+Math.cos(a)*r*f,by=y+Math.sin(a)*r*f;sx.beginPath();sx.moveTo(bx,by);sx.lineTo(bx+Math.cos(a+s*.9)*r*.28,by+Math.sin(a+s*.9)*r*.28);sx.stroke()}}}
+
+const SCENES_DRAW={
+ // ciuman dingin di pipi: pipi menghangat jadi biru, kepingan salju menempel dan tumbuh
+ frost(t,st){sky("#071226","#1c3a64","#7aa8d0",rows);stars(t,40,0,0,cols,rows*.5);
+  const cx=cols*.64,cy=rows*.5,R=U*9,c=Math.min(1,st/4),chx=cx-R*.3,chy=cy+R*.25;
+  glow(cx,cy,R*2.2,"150,200,255",.22);
+  sx.fillStyle="#ecd9de";sx.beginPath();sx.ellipse(cx,cy,R*.9,R*1.15,0,0,6.2832);sx.fill();
+  circle(chx,chy,R*.45,`rgba(${255-c*130|0},${130+c*70|0},${165+c*90|0},.6)`);
+  sx.strokeStyle="#4a3a58";sx.lineWidth=.45*U;sx.lineCap="round";sx.beginPath();sx.arc(cx-R*.4,cy-R*.1,R*.16,.15,Math.PI-.15);sx.stroke();
+  for(let i=0;i<34;i++){const sp=22+hr(i+3)*30,x=((t*sp*.5+hr(i)*cols*1.5)%(cols*1.2))-cols*.15,y=hr(i+9)*rows*.95,L=U*(3+hr(i+2)*5);
+   sx.strokeStyle=`rgba(210,235,255,${.15+.35*hr(i+5)})`;sx.lineWidth=.5+hr(i+7)*.7;sx.beginPath();sx.moveTo(x,y);sx.quadraticCurveTo(x+L*.5,y+Math.sin(t*2+i)*U*.7,x+L,y);sx.stroke()}
+  for(let i=0;i<9;i++){const k=Math.min(1,Math.max(0,(st-.4-i*.45)/1.8));if(k<=0)continue;flake(chx+(hr(i+11)-.5)*R*.8,chy+(hr(i+21)-.5)*R*.7,U*(.7+hr(i+31)*.9)*k,hr(i)*3+t*.1)}
+  for(let i=0;i<30;i++){const x=(hr(i+40)*cols+Math.sin(t*.7+i)*U*2+cols)%cols,y=(hr(i+60)*rows+t*(3+i%4)*1.6)%rows;sx.fillStyle="rgba(255,255,255,.7)";sx.fillRect(x,y,1.5,1.5)}},
+
+ // lekuk tubuh: lapisan bukit yang melengkung lembut dengan garis cahaya di punggungnya
+ bend(t){sky("#100a28","#3a1a58","#b8607a",rows);glow(cols*.2,rows*.25,U*8,"255,225,200",.7);circle(cols*.2,rows*.25,U*1.6,"#fff0dc");stars(t,40,0,0,cols,rows*.4);
+  [[.72,4,.03,0,"#4a2a5a"],[.8,5,.022,2,"#2a1440"],[.92,6,.015,4,"#0a0612"]].forEach(([h,a,f,o,col],i)=>{const hy=rows*h,sp=.18+i*.04;hills(t,hy,sp,a*U,f,o,col);
+   sx.strokeStyle=`rgba(255,190,215,${.5-i*.13})`;sx.lineWidth=.7;sx.beginPath();for(let x=0;x<cols;x+=2){const y=hillY(x,t,hy,sp,a*U,f,o);x?sx.lineTo(x,y):sx.moveTo(x,y)}sx.stroke()});
+  ground(rows*.92);
+  for(let i=0;i<26;i++){const x=(hr(i)*cols+Math.sin(t*.4+i)*U*2+cols)%cols,y=rows*.6+hr(i+4)*rows*.3+Math.sin(t*.6+i)*U;sx.fillStyle=`rgba(255,200,225,${.12+.2*Math.abs(Math.sin(t*.8+i))})`;sx.fillRect(x,y,1.4,1.4)}},
+
+ // angin dingin di pipi
+ wind(t){const hz=rows*.78;sky("#08122a","#244a7a","#9cc4e4",hz);stars(t,40,0,0,cols,rows*.4);
+  hills(t,hz,.1,3*U,.05,1,"#1a2a44");ground(hz);
+  sx.lineCap="round";for(let i=0;i<46;i++){const sp=18+hr(i+3)*34,x=((t*sp*.5+hr(i)*cols*1.6)%(cols*1.4))-cols*.2,y=hr(i+9)*hz*.95,L=U*(3+hr(i+2)*6);
+   sx.strokeStyle=`rgba(210,235,255,${.2+.4*hr(i+5)})`;sx.lineWidth=.5+hr(i+7)*.8;sx.beginPath();sx.moveTo(x,y);sx.quadraticCurveTo(x+L*.5,y+Math.sin(t*2+i)*U*.8,x+L,y);sx.stroke()}
+  for(let i=0;i<30;i++){const x=((t*14+hr(i+40)*cols*1.4)%(cols*1.3))-cols*.15,y=(hr(i+60)*rows*.8+Math.sin(t+i)*U)%rows;sx.fillStyle="rgba(255,255,255,.7)";sx.fillRect(x,y,1.4,1.4)}
+  person(cols*.38,hz+U*2.6,U*1.2,"#000","stand",t,-2.2)},
+
+ // lekuk tubuh seperti perbukitan, tunas musim semi tumbuh
+ spring(t,st){const hz=rows*.86;sky("#1b1240","#7a4a8a","#ffc2a8",hz);glow(cols*.75,hz-U*3,U*9,"255,220,180",.6);
+  hills(t,hz-U*4,.25,8*U,.05,0,"#3a2a52");
+  const fy=hz,amp=9*U,f=.042;hills(t,fy,.12,amp,f,2,"#1e4a40");ground(fy+U*.5);
+  for(let i=0;i<38;i++){const x=hr(i)*cols,by=hillY(x,t,fy,.12,amp,f,2),g=Math.min(1,Math.max(0,(st-hr(i+3)*5)/3)),h=U*(1+hr(i+4)*2.6)*g;if(h<=0)continue;
+   const sway=Math.sin(t*1.4+i)*.35*U*g;sx.strokeStyle="#6fcf9a";sx.lineWidth=.45;sx.beginPath();sx.moveTo(x,by+1);sx.quadraticCurveTo(x+sway*.3,by-h*.5,x+sway,by-h);sx.stroke();
+   circle(x+sway,by-h,U*.45*g,i%3?"#ffb3d9":"#fff0c0")}
+  for(let i=0;i<24;i++){const x=((hr(i+70)*cols+t*3*(1+i%3)+Math.sin(t+i)*U)%cols),y=((hr(i+80)*rows*.7+t*2)%(rows*.8));sx.fillStyle="rgba(255,200,225,.6)";sx.fillRect(x,y,1.5,1.5)}},
+
+ // monolog yang didengar jutaan orang: sorot lampu, banyak titik cahaya penonton
+ soliloquy(t){const hz=rows*.72,cx=cols*.5;sky("#07040f","#1c0d30","#4a2050",hz);ground(hz);
+  const g=sx.createLinearGradient(0,0,0,hz);g.addColorStop(0,"rgba(255,235,200,.5)");g.addColorStop(1,"rgba(255,235,200,.06)");sx.fillStyle=g;
+  sx.beginPath();sx.moveTo(cx-U*1.2,0);sx.lineTo(cx+U*1.2,0);sx.lineTo(cx+U*9,hz+U*3);sx.lineTo(cx-U*9,hz+U*3);sx.fill();
+  sx.fillStyle="#120a1c";sx.fillRect(0,hz,cols,U*1.2);
+  for(let i=0;i<7;i++){const k=(t*.45+i/7)%1;sx.strokeStyle=`rgba(255,190,220,${(1-k)*.7})`;sx.lineWidth=.5+k*U*.3;sx.beginPath();sx.ellipse(cx,hz-U*5,U*2+k*cols*.45,U*3+k*rows*.3,0,0,6.2832);sx.stroke()}
+  person(cx,hz+U*1,U*1.15,"#000","stand",t);
+  for(let i=0;i<130;i++){const x=hr(i)*cols,y=hz+U*2+hr(i+7)*(rows-hz-U*3),a=.2+.7*Math.abs(Math.sin(t*(.6+hr(i+3))+i));sx.fillStyle=`rgba(255,${190+hr(i)*50|0},${190+hr(i+5)*60|0},${a})`;sx.fillRect(x,y,1.6,1.6)}},
+
+ // anak kecil di pantai pasir hitam
+ beach(t,st){const hz=rows*.55,shore=rows*.74;sky("#14142c","#46466a","#a0a0bc",hz);
+  const sea=sx.createLinearGradient(0,hz,0,shore);sea.addColorStop(0,"#2a3050");sea.addColorStop(1,"#3a4a70");sx.fillStyle=sea;sx.fillRect(0,hz,cols,shore-hz);
+  for(let i=0;i<9;i++){const k=(t*.12+i/9)%1,y=hz+(shore-hz)*k*k;sx.strokeStyle=`rgba(210,225,255,${.1+k*.4})`;sx.lineWidth=.4+k*.8;sx.beginPath();for(let x=0;x<=cols;x+=3){const yy=y+Math.sin(x*.07+t*1.2+i)*k*U*.5;x?sx.lineTo(x,yy):sx.moveTo(x,yy)}sx.stroke()}
+  const sh=shore-Math.sin(t*.55)*U*1.6;sx.fillStyle="#040406";sx.fillRect(0,sh,cols,rows-sh);
+  sx.strokeStyle="rgba(235,245,255,.75)";sx.lineWidth=.9;sx.beginPath();for(let x=0;x<=cols;x+=2){const yy=sh+Math.sin(x*.09+t*1.5)*.5;x?sx.lineTo(x,yy):sx.moveTo(x,yy)}sx.stroke();
+  for(let i=0;i<14;i++){sx.fillStyle="rgba(190,205,235,.18)";sx.fillRect(cols*.3+i*U*1.4,rows*.93-(i%2)*U*.6,U*.55,U*.28)}
+  const cx=cols*.55;person(cx,rows*.93,U*.8,"#000","stand",t);
+  sx.fillStyle="rgba(180,190,225,.2)";for(let i=0;i<30;i++){sx.fillRect(hr(i)*cols,hz+hr(i+3)*(shore-hz),1.4,1.4)}},
+
+ // benang yang menghubungkan dua siluet, hati bercahaya
+ forever(t){const hz=rows*.84,cx=cols*.5;sky("#0a0820","#2a1450","#7a3a7a",hz);ground(hz);stars(t,60);
+  const p=1+Math.sin(t*2.2)*.08;glow(cx,rows*.28,U*13*p,"255,120,190",.55);heart(cx,rows*.3,U*7*p,"#ff7fb6");
+  for(let i=0;i<18;i++){const a=t*.5+i/18*6.2832,r=U*(8+Math.sin(t+i)*1.2);sx.fillStyle="rgba(255,200,230,.7)";sx.fillRect(cx+Math.cos(a)*r*1.4,rows*.28+Math.sin(a)*r*.7,1.6,1.6)}
+  const ax=cx-U*3.5,bx=cx+U*3.5+Math.sin(t*.8)*U*1.8,gy=hz+U*2;
+  sx.strokeStyle="#ff9fcf";sx.lineWidth=.6;sx.beginPath();sx.moveTo(ax+U*1.3,gy-U*4.2);sx.quadraticCurveTo((ax+bx)/2,gy-U*4.2+Math.abs(Math.sin(t*.8))*U*1.2+U*.8,bx-U*1.3,gy-U*4.2);sx.stroke();
+  person(ax,gy,U*1.15,"#000","stand",t);person(bx,gy,U*1.15,"#0a0a12","stand",t);
+  sx.strokeStyle="#6a4a8a";sx.lineWidth=.5;sx.strokeRect(bx-U*.1,gy-U*10.3,.1,.1)},
+
+ // bunga yang layu, kelopak berguguran, memudar dari ingatan
+ wither(t,st){const hz=rows*.86,cx=cols*.5;sky("#150e20","#4a2a42","#a8706a",hz);ground(hz);
+  const d=Math.min(1,st/7),hx=cx+d*U*4.5,hy=hz-U*14+d*U*6;
+  sx.strokeStyle=`rgb(${90-d*30|0},${150-d*60|0},${110-d*40|0})`;sx.lineWidth=.9;sx.lineCap="round";sx.beginPath();sx.moveTo(cx,hz);sx.quadraticCurveTo(cx,hy+U*5,hx,hy);sx.stroke();
+  sx.beginPath();sx.moveTo(cx,hz-U*4);sx.quadraticCurveTo(cx-U*3,hz-U*5.5+d*U,cx-U*4.5,hz-U*3+d*U*2);sx.stroke();
+  for(let i=0;i<9;i++){const a=i/9*6.2832+.3,t0=1+i*.55,fallen=st>t0,k=fallen?st-t0:0;
+   const px=hx+Math.cos(a)*U*2+(fallen?Math.sin(k*1.3+i)*U*1.6:0),py=Math.min(hz-.3,hy+Math.sin(a)*U*1.6+(fallen?k*k*U*1.1:0));
+   const al=fallen?Math.max(0,1-k*.28):1,gr=Math.min(1,d+(fallen?.3:0));
+   sx.globalAlpha=al;sx.fillStyle=`rgb(${255-gr*110|0},${150-gr*40|0},${190-gr*50|0})`;sx.beginPath();sx.ellipse(px,py,U*1.1,U*.55,a+(fallen?k:0),0,6.2832);sx.fill();sx.globalAlpha=1}
+  circle(hx,hy,U*.7,`rgb(${255-d*120|0},${220-d*90|0},${150-d*50|0})`);
+  for(let i=0;i<22;i++){const k=(t*.12+hr(i)+i/22)%1;sx.fillStyle=`rgba(255,210,200,${(1-k)*.35})`;sx.fillRect(hx+(hr(i+3)-.5)*U*10+Math.sin(t+i)*U,hy+k*(hz-hy)*.9,1.3,1.3)}},
+
+ // aurora islandia, bunga forget-me-not, burung terbang pergi
+ aurora(t,st){const hz=rows*.8;sky("#02081a","#061a2e","#0a2a3a",hz);stars(t,70,0,0,cols,rows*.5);
+  for(let x=0;x<cols;x++){const y0=rows*.16+Math.sin(x*.05+t*.6)*U*3+Math.sin(x*.13-t*.4)*U*1.5,h=U*9*(.6+.4*Math.sin(x*.07+t)),hue=150+Math.sin(x*.02+t*.3)*50+(x/cols)*60;
+   for(let j=0;j<6;j++){sx.fillStyle=`hsla(${hue},85%,${55+j*3}%,${(1-j/6)*.42})`;sx.fillRect(x,y0+j*h/6,1,h/6+1)}}
+  hills(t,hz,0,5*U,.04,3,"#0a1218");hills(t,hz+U*3,0,4*U,.03,5,"#000");ground(hz+U*3);
+  for(let i=0;i<30;i++){const x=hr(i+90)*cols,by=hillY(x,t,hz+U*3,0,4*U,.03,5)-U*.2,sw=Math.sin(t*1.5+i)*.3;
+   sx.strokeStyle="#2a5a4a";sx.lineWidth=.4;sx.beginPath();sx.moveTo(x,by+2);sx.lineTo(x+sw,by-U*.9);sx.stroke();
+   for(let p=0;p<5;p++){const a=p/5*6.2832;circle(x+sw+Math.cos(a)*U*.35,by-U*.9+Math.sin(a)*U*.35,U*.22,"#7fb0ff")}circle(x+sw,by-U*.9,U*.15,"#fff2a0")}
+  const bx=cols*.28+st*U*3.2,by=rows*.5-st*U*1.1,f=Math.sin(t*7)*U*.9;sx.strokeStyle="#d8f0ff";sx.lineWidth=.7;sx.lineCap="round";sx.beginPath();sx.moveTo(bx-U*2,by+f);sx.quadraticCurveTo(bx-U,by-U*.4,bx,by);sx.quadraticCurveTo(bx+U,by-U*.4,bx+U*2,by+f);sx.stroke();
+  person(cols*.22,hillY(cols*.22,t,hz+U*3,0,4*U,.03,5)+U*.5,U*1.1,"#000","stand",t)}
+};
+
+function layout(i){if(cache&&cache.i===i)return cache;const words=LYRICS[i].s.split(/\s+/),maxW=cols*.88;let fs=Math.floor(Math.min(rows*.12,cols*.13)),lines;
+ for(;fs>=5;fs--){sx.font=`700 ${fs}px "Helvetica Neue",Arial,sans-serif`;const sp=sx.measureText(" ").width;lines=[{items:[],width:0}];let cur=0,n=0;
+  for(const w of words){const ww=sx.measureText(w).width;if(cur>0&&cur+sp+ww>maxW){lines.push({items:[],width:0});cur=0}if(cur>0)cur+=sp;const L=lines[lines.length-1];L.items.push({w,x:cur,i:n++});cur+=ww;L.width=cur}
+  if(lines.length<=3&&lines.every(l=>l.width<=maxW))break}
+ return cache={i,fs,lines,total:words.length}}
+function drawLyric(i,p){const L=layout(i),typing=Math.min(1,p/.25),vis=Math.ceil(L.total*typing),alpha=p>.92?Math.max(0,(1-p)/.08):1,lh=L.fs*1.28,y0=rows*.54-L.lines.length*lh/2+lh/2;
+ sx.save();sx.globalAlpha=alpha;sx.font=`700 ${L.fs}px "Helvetica Neue",Arial,sans-serif`;sx.textBaseline="middle";sx.textAlign="left";sx.lineJoin="round";sx.lineWidth=Math.max(1.5,L.fs*.16);sx.strokeStyle="#000";
+ L.lines.forEach((line,r)=>{const x0=(cols-line.width)/2,y=y0+r*lh;for(const it of line.items){if(it.i>=vis)continue;sx.fillStyle=typing<1&&it.i===vis-1?COLOR_ACCENT:COLOR_TEXT;sx.strokeText(it.w,x0+it.x,y);sx.fillText(it.w,x0+it.x,y)}});sx.restore()}
+
+const RAMP=" .:-=+*#%@";
+function render(){const d=sx.getImageData(0,0,cols,rows).data;ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle="#000";ctx.fillRect(0,0,canvas.width,canvas.height);const z=1+Math.min(sceneT,14)*.003;ctx.setTransform(dpr*z,0,0,dpr*z,-W*(z-1)/2*dpr,-H*(z-1)/2*dpr);
+ if(mode===1){ctx.font=`${cell*1.2}px ui-monospace,Menlo,Consolas,monospace`;ctx.textAlign="center";ctx.textBaseline="middle"}
+ for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){const i=(y*cols+x)*4,r=d[i],g=d[i+1],b=d[i+2],l=Math.max(r,g,b)/255;if(l<.07)continue;
+  ctx.fillStyle=`rgb(${r},${g},${b})`;const cx=x*cell+cell/2,cy=y*cell+cell/2;
+  if(mode===0){ctx.beginPath();ctx.arc(cx,cy,cell*.48*Math.sqrt(l),0,6.2832);ctx.fill()}else ctx.fillText(RAMP[Math.min(9,Math.floor(l*10))],cx,cy)}}
+
+function post(t,k){const m=Math.max(0,k)/Math.max(1,LYRICS.length-1);
+ sx.globalCompositeOperation="overlay";sx.fillStyle=`rgba(${m<.5?"80,110,255":"150,200,255"},${.2*Math.abs(m*2-1)+.05})`;sx.fillRect(0,0,cols,rows);sx.globalCompositeOperation="source-over";
+ const g=sx.createRadialGradient(cols/2,rows/2,rows*.35,cols/2,rows/2,Math.max(cols,rows)*.62);g.addColorStop(0,"rgba(0,0,0,0)");g.addColorStop(1,"rgba(0,0,0,.7)");sx.fillStyle=g;sx.fillRect(0,0,cols,rows);
+ for(let i=0;i<28;i++){const x=(hr(i)*cols+Math.sin(t*.4+i)*U*2+cols)%cols,y=((hr(i+30)*rows-t*(1+i%3)*.9)%rows+rows)%rows;sx.fillStyle=`rgba(210,230,255,${.12+.2*Math.abs(Math.sin(t+i))})`;sx.fillRect(x,y,1.3,1.3)}}
+function frame(ts){requestAnimationFrame(frame);const dt=Math.min(.1,(ts-last)/1000||0);last=ts;if(!started)return;if(!paused)T+=dt;
+ const now=useAudio()?audio.currentTime:T;let k=-1;for(let i=0;i<TIMES.length;i++)if(TIMES[i]<=now)k=i;
+ if(k!==idx)idx=k;
+ let dur=4;if(k>=0){dur=Math.max(.5,(TIMES[k+1]??TIMES[k]+5)-TIMES[k]);lineT=now-TIMES[k]}else lineT=0;
+ const nm=k<0?LYRICS[0].scene:LYRICS[k].scene;if(nm!==scene){scene=nm;sceneT=0}sceneT+=dt;
+ sx.globalAlpha=1;sx.fillStyle="#000";sx.fillRect(0,0,cols,rows);(SCENES_DRAW[scene]||SCENES_DRAW.wind)(T,sceneT);sx.globalAlpha=1;
+ if(sceneT<.7){sx.globalAlpha=1-sceneT/.7;sx.fillStyle="#000";sx.fillRect(0,0,cols,rows);sx.globalAlpha=1}
+ post(now,k);if(k>=0)drawLyric(k,Math.min(1,lineT/dur));render()}
+requestAnimationFrame(frame);
+
+function go(d){const i=Math.max(0,Math.min(LYRICS.length-1,idx+d));if(useAudio())audio.currentTime=TIMES[i]+.01;else T=TIMES[i]+.01}
+function seek(s){if(useAudio())audio.currentTime=Math.max(0,Math.min(audio.duration||0,audio.currentTime+s));else T=Math.max(0,T+s)}
+function togglePlay(){if(!started)return begin();if(useAudio()){if(audio.paused){audio.play().catch(()=>{});paused=false}else{audio.pause();paused=true}}else paused=!paused;updateControls()}
+function begin(){started=true;$("start").classList.add("hide");audio.play().then(()=>{paused=false;updateControls()}).catch(()=>{paused=false;updateControls()})}
+const fmt=s=>{if(!Number.isFinite(s))return"0:00";s=Math.max(0,Math.floor(s));return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
+function updateControls(){const cur=useAudio()?audio.currentTime:T,dur=useAudio()&&Number.isFinite(audio.duration)?audio.duration:TIMES.at(-1)+8;
+ $("progress").max=dur||1;$("progress").value=Math.min(cur,dur||1);$("time").textContent=`${fmt(cur)} / ${fmt(dur)}`;$("play").textContent=(useAudio()?!audio.paused:!paused)?"⏸ Jeda":"▶ Putar"}
+const ctl=$("controls"),showBtn=$("showControls");
+const hideCtl=()=>{ctl.classList.add("hidden");showBtn.classList.add("visible")},showCtl=()=>{ctl.classList.remove("hidden");showBtn.classList.remove("visible")};
+const fullscreen=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();
+$("start").addEventListener("click",begin);$("play").addEventListener("click",togglePlay);
+$("back10").onclick=()=>seek(-10);$("fwd10").onclick=()=>seek(10);$("prev").onclick=()=>go(-1);$("next").onclick=()=>go(1);
+$("hideControls").onclick=$("hideControls2").onclick=hideCtl;showBtn.onclick=showCtl;$("fs").onclick=fullscreen;
+$("progress").addEventListener("input",e=>{const v=Number(e.target.value);if(useAudio())audio.currentTime=v;else T=v});
+audio.addEventListener("play",()=>{paused=false;updateControls()});audio.addEventListener("pause",()=>{paused=true;updateControls()});
+audio.addEventListener("loadedmetadata",updateControls);audio.addEventListener("timeupdate",updateControls);
+addEventListener("keydown",e=>{if(!started){if(e.code==="Space"||e.code==="Enter")begin();return}
+ if(e.code==="Space"){e.preventDefault();togglePlay()}else if(e.code==="ArrowRight"){e.preventDefault();seek(5)}else if(e.code==="ArrowLeft"){e.preventDefault();seek(-5)}
+ else if(e.code==="ArrowUp"){e.preventDefault();go(-1)}else if(e.code==="ArrowDown"){e.preventDefault();go(1)}
+ else if(e.key.toLowerCase()==="m")mode=1-mode;else if(e.key.toLowerCase()==="h")ctl.classList.contains("hidden")?showCtl():hideCtl();else if(e.key.toLowerCase()==="f")fullscreen()});
+updateControls();
+</script>
+</body>
+</html>
